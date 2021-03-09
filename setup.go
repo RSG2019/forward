@@ -240,6 +240,8 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 		default:
 			return c.Errf("unknown policy '%s'", x)
 		}
+	case "except-file":
+		return parseIgnoredFromFile(f, c)
 	case "max_concurrent":
 		if !c.NextArg() {
 			return c.ArgErr()
@@ -253,11 +255,27 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 		}
 		f.ErrLimitExceeded = errors.New("concurrent queries exceeded maximum " + c.Val())
 		f.maxConcurrent = int64(n)
-
+ 
 	default:
 		return c.Errf("unknown property '%s'", c.Val())
 	}
 
+	return nil
+}
+
+func parseIgnoredFromFile(f *Fanout, c *caddyfile.Dispenser) error {
+	args := c.RemainingArgs()
+	if len(args) != 1 {
+		return c.ArgErr()
+	}
+	b, err := ioutil.ReadFile(filepath.Clean(args[0]))
+	if err != nil {
+		return err
+	}
+	names := strings.Split(string(b), "\n")
+	for i := 0; i < len(names); i++ {
+		f.excludeDomains.AddString(plugin.Host(names[i]).Normalize())
+	}
 	return nil
 }
 
